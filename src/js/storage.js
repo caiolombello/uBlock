@@ -893,6 +893,7 @@ onBroadcast(msg => {
 {
     const loadedListKeys = [];
     let loadingPromise;
+    let reloadPromise;
     let t0 = 0;
 
     const elapsed = ( ) => `${Date.now() - t0} ms`;
@@ -999,7 +1000,20 @@ onBroadcast(msg => {
     };
 
     µb.loadFilterLists = function() {
-        if ( loadingPromise instanceof Promise ) { return loadingPromise; }
+        // A load is in progress, and it may have read which lists are selected
+        // before the change this call is meant to apply (e.g. "Apply changes"
+        // in the dashboard while the lists are reloaded after an update).
+        // Load once more when the current load completes: any number of calls
+        // made meanwhile share that one extra load.
+        if ( loadingPromise instanceof Promise ) {
+            if ( reloadPromise === undefined ) {
+                reloadPromise = loadingPromise.then(( ) => {
+                    reloadPromise = undefined;
+                    return this.loadFilterLists();
+                });
+            }
+            return reloadPromise;
+        }
         ubolog('loadFilterLists() Start');
         t0 = Date.now();
         loadedListKeys.length = 0;
